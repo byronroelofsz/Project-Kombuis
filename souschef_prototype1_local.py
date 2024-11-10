@@ -10,13 +10,19 @@ from streamlit_folium import folium_static
 from geopy.geocoders import Nominatim
 from geopy.adapters import RequestsAdapter
 import requests
+from datetime import datetime 
 
 # Set page config to wide layout
 st.set_page_config(layout="wide", page_title="Sous Chef - Your Personal AI Agent")
 
 # Load and display logo
 logo = Image.open("sous_chef_logo1.webp")
-st.sidebar.image(logo, width=250)  # Adjust width as needed
+st.sidebar.image(logo, width=300)  # Adjust width as needed
+
+# Display current date and time in the sidebar
+current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+st.sidebar.markdown(f"Welcome back, Jane Doe")
+st.sidebar.markdown(f"**Date & Time:** {current_datetime}")
 
 def get_snowflake_connection():
     return snowflake.connector.connect(
@@ -531,29 +537,48 @@ def display_competitors_module():
 
 # Function for displaying global markets and news module
 def display_global_markets_module():
-    st.header("Global Markets")
-    st.write("Explore the latest global market trends and data insights from top sources.")
+    st.header("Global Markets & Industry News")
+    st.write("Stay updated with the latest global market trends, insights, and industry news.")
 
-    st.subheader("Bloomberg UK")
-    st.markdown("[Visit Bloomberg UK](https://www.bloomberg.com/uk)")
+    # Sources list with concise format
+    sources = {
+        "Bloomberg UK": "https://www.bloomberg.com/uk",
+        "Reuters": "https://www.reuters.com/",
+        "Statista": "https://www.statista.com/",
+        "The Caterer - Restaurant News": "https://www.thecaterer.com/news/restaurant",
+        "Restaurant Online": "https://www.restaurantonline.co.uk/",
+        "Code Hospitality": "https://www.codehospitality.co.uk/"
+    }
+    
+    # Display sources in a concise list with links
+    st.subheader("Top Sources")
+    for name, link in sources.items():
+        st.markdown(f"- **{name}**: [Visit]({link})")
 
-    st.subheader("Reuters")
-    st.markdown("[Visit Reuters](https://www.reuters.com/)")
+    # Ingredient-based news section
+    st.subheader("Latest News by Ingredient")
+    ingredient = st.text_input("Enter an ingredient to find the latest news:", placeholder="e.g., 'tomato'")
 
-    st.subheader("Statista")
-    st.markdown("[Visit Statista](https://www.statista.com/)")
+    if ingredient:
+        # Using NewsAPI to search for latest news related to the ingredient
+        url = f"https://newsapi.org/v2/everything?q={ingredient}&apiKey=83455d79471f4feea24ae1f4ead76902"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Check for HTTP errors
 
-    st.header("Industry News")
-    st.write("Stay updated with the latest news and trends in the restaurant and hospitality industry.")
+            news_data = response.json()
+            articles = news_data.get("articles", [])
 
-    st.subheader("The Caterer - Restaurant News")
-    st.markdown("[Visit The Caterer - Restaurant News](https://www.thecaterer.com/news/restaurant)")
+            if articles:
+                st.write(f"### Latest News on {ingredient.capitalize()}:")
+                for article in articles[:5]:  # Display top 3 articles
+                    st.markdown(f"- **{article['title']}**: [{article['source']['name']}]({article['url']})")
+            else:
+                st.write(f"No recent news articles found for '{ingredient}'.")
+        except requests.exceptions.RequestException as e:
+            st.write("Error retrieving news data.")
+            st.write(e)
 
-    st.subheader("Restaurant Online")
-    st.markdown("[Visit Restaurant Online](https://www.restaurantonline.co.uk/)")
-
-    st.subheader("Code Hospitality")
-    st.markdown("[Visit Code Hospitality](https://www.codehospitality.co.uk/)")
 
 # Display selected module
 if module == "Home - Search":
