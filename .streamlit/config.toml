@@ -1,0 +1,8 @@
+# .streamlit/config.toml
+
+[theme]
+primaryColor = "#7CD7F1"  # Accent color (gold, optional)
+backgroundColor = "#1F1F1F"  # Dark grey for main content
+secondaryBackgroundColor = "#181818"  # Even darker grey for the sidebar
+textColor = "#FFFFFF"  # White text for readability
+font = "sans serif"  # Optional, adjust as needed
