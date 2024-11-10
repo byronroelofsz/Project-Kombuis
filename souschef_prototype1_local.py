@@ -3,15 +3,20 @@ import os
 import snowflake.connector
 import pandas as pd
 import matplotlib.pyplot as plt
-from PIL import Image  # To ensure compatibility with different image formats
-
+from PIL import Image
+from geopy.geocoders import Nominatim
+import folium
+from streamlit_folium import folium_static
+from geopy.geocoders import Nominatim
+from geopy.adapters import RequestsAdapter
+import requests
 
 # Set page config to wide layout
 st.set_page_config(layout="wide", page_title="Sous Chef - Your Personal AI Agent")
 
 # Load and display logo
 logo = Image.open("sous_chef_logo1.webp")
-st.sidebar.image(logo, width=150)  # Adjust width as needed
+st.sidebar.image(logo, width=250)  # Adjust width as needed
 
 def get_snowflake_connection():
     return snowflake.connector.connect(
@@ -27,7 +32,6 @@ def get_snowflake_connection():
 # Hide the Streamlit footer
 hide_streamlit_style = """
     <style>
-    #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     footer:after {content:'Sous Chef © 2024'; visibility: visible; display: block; 
         position: relative; color: grey; padding: 5px; top: 3px;
@@ -37,12 +41,20 @@ hide_streamlit_style = """
 
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
+# Sidebar setup for modules
+
+st.sidebar.title("Modules")
+module = st.sidebar.radio("Select Module", [
+    "Home - Search", "P&L", "Revenue", "Suppliers", "Menu", 
+    "Competitors", "Global Markets & News", "Marketing"
+])
+
 # Set up the Streamlit app title and introductory text
 st.title("Sous Chef - Your Personal AI Agent")
 st.write("Welcome to prototype 1")
 
 # Sidebar setup for Project Kombuis information
-st.sidebar.header("Sous Chef")
+st.sidebar.header("About")
 st.sidebar.write("""
 Sous Chef is an AI-powered data hub that helps food brands optimize operations in a dynamic market.
 By integrating data from multiple sources—delivery platforms, supplier networks, industry news, 
@@ -51,12 +63,37 @@ With strategic focus areas in Revenue, Supplier Costs, Core Industry Integration
 Sous Chef empowers data-driven decisions that enhance competitive advantage.
 """)
 
-# Sidebar setup for modules
-st.sidebar.title("Modules")
-module = st.sidebar.radio("Select Module", [
-    "Home - Search", "P&L", "Revenue", "Suppliers", "Menu", 
-    "Competitors", "Global Markets & News", "Marketing"
-])
+
+
+#
+def display_uk_postcode_map_with_multiple_pins(postcodes):
+    # Check if the list of postcodes is empty
+    if len(postcodes) == 0:
+        st.write("No postcodes available to display on the map.")
+        return
+
+    first_postcode = postcodes[0]
+    url = f"https://api.postcodes.io/postcodes/{first_postcode}"
+    response = requests.get(url, timeout=10)
+
+    if response.status_code == 200:
+        data = response.json()["result"]
+        map_obj = folium.Map(location=[data['latitude'], data['longitude']], zoom_start=10)
+
+        # Loop over each postcode, adding a pin to the map
+        for postcode in postcodes:
+            url = f"https://api.postcodes.io/postcodes/{postcode}"
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                data = response.json()["result"]
+                lat, lon = data['latitude'], data['longitude']
+                folium.Marker([lat, lon], popup=f"Location: {postcode}").add_to(map_obj)
+            else:
+                st.write(f"Could not retrieve data for postcode: {postcode}")
+
+        folium_static(map_obj)
+    else:
+        st.write("Could not initialize map with the first postcode.")
 
 # Function for displaying search module
 def display_search_module():
@@ -65,7 +102,7 @@ def display_search_module():
 
     # Suggested question examples organized by module categories
     st.write("### Question Examples")
-    col1, col2 = st.columns(2)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         # P&L
@@ -74,35 +111,41 @@ def display_search_module():
         st.button("What is my profit margin?", key="pnl_profit_margin")
         st.button("How is my EBITDA trending?", key="pnl_ebitda_trend")
 
+    with col2:
         # Revenue
         st.write("**Revenue**")
         st.button("What was my revenue last week?", key="revenue_last_week")
         st.button("How did each location perform in terms of revenue?", key="revenue_per_location")
         st.button("What are the top revenue channels?", key="revenue_channels")
 
+    with col3:
         # Suppliers
         st.write("**Suppliers**")
         st.button("Which supplier has the best prices this week?", key="supplier_best_price")
         st.button("What are my supplier trends over time?", key="supplier_trends")
         st.button("Which suppliers am I spending the most on?", key="supplier_most_spending")
 
-    with col2:
+    with col4:
         # Menu
         st.write("**Menu**")
         st.button("What was my top selling item last week?", key="menu_top_selling_item")
         st.button("Which menu item has the highest profit margin?", key="menu_highest_margin")
         st.button("What menu items are most popular by location?", key="menu_popular_by_location")
 
+    # Additional columns for other modules
+    with col1:
         # Competitors
         st.write("**Competitors**")
         st.button("How do my ratings compare to competitors?", key="competitor_rating_comparison")
         st.button("What are my competitors' top-selling items?", key="competitor_top_items")
         
+    with col2:
         # Global Markets & News
         st.write("**Global Markets & News**")
         st.button("What are global prices for key ingredients?", key="global_prices")
         st.button("Are there any relevant industry updates this week?", key="global_news_updates")
 
+    with col3:
         # Marketing
         st.write("**Marketing**")
         st.button("What are my social media stats?", key="marketing_social_stats")
@@ -115,50 +158,85 @@ def display_search_module():
         st.write(f"Searching for insights related to: {search_query}")
         st.write("Here’s an insight based on your query...")
 
+    st.write("### Find Location and Details by UK Postcode")
+    postcode = st.text_input("Enter a UK postcode:", placeholder="e.g., SW1A 1AA")
+    if postcode:
+        display_uk_postcode_map_and_details(postcode)
+
 
 # Function for displaying P&L module
 def display_pnl_module():
     st.header("Profit & Loss (P&L) Overview")
     st.write("An in-depth look into your revenue, costs, and profitability metrics.")
 
-    # Key Metrics at the top
-    st.subheader("Key Financial Metrics")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # Core Inputs Section
+    st.subheader("Core Inputs")
+    st.write("Primary revenue and cost inputs that impact gross profit.")
 
-    # Placeholder metrics for now; replace with real data
-    revenue = 120000  # Sample data
-    cogs = 60000      # Sample data
-    orders = 1500     # Sample data
-    profit_per_order = 12.50  # Sample data
-    margin = 0.25     # Sample data
+    core_data = {
+        "Category": ["Revenue", "ODP Commission", "COGS"],
+        "Notes": ["All forms of revenue", "Platform commission fees", "Supply Costs"],
+        "Input/Value": [84704.89, 25411.47, 21176.22]
+    }
+    core_df = pd.DataFrame(core_data)
+    st.table(core_df)
 
-    with col1:
-        st.metric(label="Revenue", value=f"${revenue:,.2f}")
-    with col2:
-        st.metric(label="COGS", value=f"${cogs:,.2f}")
-    with col3:
-        st.metric(label="Orders", value=f"{orders:,}")
-    with col4:
-        st.metric(label="Profit per Order", value=f"${profit_per_order:.2f}")
-    with col5:
-        st.metric(label="Margin", value=f"{margin:.2%}")
+    # Gross Profit Section
+    st.subheader("Gross Profit")
+    st.write("Gross profit calculation based on fixed, variable, and labor costs.")
 
-    # Detailed P&L
-    st.subheader("Detailed P&L")
-    st.write("Explore detailed profit and loss components below, including revenue actuals and forecasts, COGS, EBITDA, and operating profit.")
+    gross_data = {
+        "Category": ["Fixed Costs", "Variable Costs", "Labour"],
+        "Notes": ["Rent, Rates, Service charge", "Utilities, waste management, consumables", "Zero hour contracts (shift staff)"],
+        "Input/Value": [3500.00, 1000.00, 10920.00]
+    }
+    gross_df = pd.DataFrame(gross_data)
+    st.table(gross_df)
 
-    # Side-by-side graphs for Revenue & COGS
+    # Operating Profit Section
+    st.subheader("Operating Profit")
+    st.write("Calculation of operating profit after accounting for additional staff, marketing, and head office costs.")
+
+    operating_data = {
+        "Category": ["Staff Cost", "Marketing", "Head Office Costs"],
+        "Notes": ["Full time (e.g., Managers)", "All marketing", "Included in business P&L not site P&L"],
+        "Input/Value": [0.00, 500.00, 0.00]
+    }
+    operating_df = pd.DataFrame(operating_data)
+    st.table(operating_df)
+
+    # EBITDA Section
+    st.subheader("EBITDA")
+    st.write("Earnings before interest, taxes, depreciation, and amortization.")
+
+    ebitda_value = core_data["Input/Value"][0] - core_data["Input/Value"][2] - sum(gross_data["Input/Value"]) - sum(operating_data["Input/Value"])
+    st.metric(label="EBITDA", value=f"${ebitda_value:,.2f}")
+
+    # Additional Key Metrics to Highlight
+    st.subheader("Key Metrics to Highlight")
+    highlight_data = {
+        "Metric": ["Basket Size", "Gross Profit Margin", "Operating Profit Margin", "EBITDA Margin"],
+        "Notes": ["Value", "Percentage", "Percentage", "Percentage"],
+        "Calculation": [
+            core_data["Input/Value"][0] / 1500,  # Placeholder calculation for basket size
+            (core_data["Input/Value"][0] - core_data["Input/Value"][2]) / core_data["Input/Value"][0] * 100,
+            ebitda_value / core_data["Input/Value"][0] * 100,
+            ebitda_value / core_data["Input/Value"][0] * 100
+        ]
+    }
+    highlight_df = pd.DataFrame(highlight_data)
+    highlight_df["Calculation"] = highlight_df["Calculation"].apply(lambda x: f"{x:.2f}%" if isinstance(x, float) else f"${x:.2f}")
+    st.table(highlight_df)
+
+    # Graphs for Revenue & COGS
     col1, col2 = st.columns(2)
 
-    # Revenue Actuals & Forecasts in first column
+    # Revenue Actuals & Forecasts in the first column
     with col1:
         st.write("### Revenue Actuals & Forecasts")
-        st.write("Compare actual revenue with aimed and adjusted forecasts.")
-
-        # Placeholder data for actuals and forecasts
-        actual_revenue = [100000, 105000, 110000]  # Monthly or weekly data
-        aimed_forecast = [102000, 107000, 115000]
-        adjusted_forecast = [98000, 104000, 108000]
+        actual_revenue = [84704.89, 85400.00, 87000.00]  # Example data
+        aimed_forecast = [86000.00, 87500.00, 88000.00]
+        adjusted_forecast = [84000.00, 85000.00, 86000.00]
         periods = ["Jan", "Feb", "Mar"]
 
         fig, ax = plt.subplots()
@@ -170,37 +248,17 @@ def display_pnl_module():
         ax.legend()
         st.pyplot(fig)
 
-    # COGS (Cost of Goods Sold) in second column
+    # COGS Breakdown in the second column
     with col2:
-        st.write("### Cost of Goods Sold (COGS)")
-        st.write("Overview of costs directly associated with producing goods sold.")
-
-        # Placeholder COGS breakdown
+        st.write("### Cost of Goods Sold (COGS) Breakdown")
         cogs_data = pd.DataFrame({
             "Category": ["Raw Materials", "Packaging", "Labor", "Other"],
-            "Cost": [30000, 10000, 15000, 5000]
+            "Cost": [12000, 4000, 3000, 176.22]
         })
         fig, ax = plt.subplots()
         ax.pie(cogs_data["Cost"], labels=cogs_data["Category"], autopct='%1.1f%%', startangle=90)
         ax.axis("equal")  # Equal aspect ratio ensures that pie is drawn as a circle
         st.pyplot(fig)
-
-    # EBITDA and Operating Profit
-    st.write("### EBITDA & Operating Profit")
-    st.write("Analyze earnings before interest, taxes, depreciation, and amortization (EBITDA) at both site and head office levels.")
-
-    # Placeholder data for EBITDA
-    ebitda_site = 20000  # Sample site-based EBITDA
-    ebitda_head_office = 15000  # Sample head-office EBITDA
-    operating_profit_location = 5000  # Sample operating profit
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="EBITDA (Site)", value=f"${ebitda_site:,.2f}")
-    with col2:
-        st.metric(label="EBITDA (Head Office)", value=f"${ebitda_head_office:,.2f}")
-    with col3:
-        st.metric(label="Operating Profit (Location)", value=f"${operating_profit_location:,.2f}")
 
 # Function for displaying revenue module
 def display_revenue_module():
@@ -215,20 +273,20 @@ def display_revenue_module():
     # Get the current Snowflake session
     conn = get_snowflake_connection()
 
-
     # Query data from Snowflake
     query_result = pd.read_sql("SELECT * FROM KOMBUIS_PROTOTYPE1.PUBLIC.REVENUE_STREAM_OTTER_ORDERHISTORY", conn)
     conn.close()
     queried_data = query_result.rename(columns=str.lower)
 
-    # Filter by brand
+    # Filters by brand and location in two columns
     st.write("### Filter by Brand & Location")
-    brand_selection = st.selectbox("Select Brand", options=queried_data['organization'].unique(), key="brand_selection")
-    filtered_data_by_brand = queried_data[queried_data['organization'] == brand_selection]
-
-    # Filter by location
-    location_selection = st.selectbox("Select Location", options=filtered_data_by_brand['location'].unique(), key="location_selection")
-    filtered_data = filtered_data_by_brand[filtered_data_by_brand['location'] == location_selection]
+    col1, col2 = st.columns(2)
+    with col1:
+        brand_selection = st.selectbox("Select Brand", options=queried_data['organization'].unique(), key="brand_selection")
+        filtered_data_by_brand = queried_data[queried_data['organization'] == brand_selection]
+    with col2:
+        location_selection = st.selectbox("Select Location", options=filtered_data_by_brand['location'].unique(), key="location_selection")
+        filtered_data = filtered_data_by_brand[filtered_data_by_brand['location'] == location_selection]
 
     # Calculate key metrics on filtered data
     num_orders = len(filtered_data)
@@ -236,21 +294,22 @@ def display_revenue_module():
     total_discount = filtered_data['discount'].sum()
     total_items_quantity = filtered_data['items_quantity'].sum()
 
-    # Calculate metrics
+    # Calculate additional metrics
     average_basket_size = total_subtotal / num_orders if num_orders else 0
     average_discount_per_order = total_discount / num_orders if num_orders else 0
     average_items_per_order = total_items_quantity / num_orders if num_orders else 0
     average_orders_per_day = num_orders / 10
 
-    # Display key metrics
+    # Display key metrics in table format
     st.write("### Key Metrics")
-    st.write(f"**Average Basket Size:** ${average_basket_size:.2f}")
-    st.write(f"**Average Discount per Order:** ${average_discount_per_order:.2f}")
-    st.write(f"**Average Items per Order:** {average_items_per_order:.2f}")
-    st.write(f"**Average Orders per Day:** {average_orders_per_day:.2f}")
+    metrics_data = {
+        "Metric": ["Average Basket Size", "Average Discount per Order", "Average Items per Order", "Average Orders per Day"],
+        "Value": [f"${average_basket_size:.2f}", f"${average_discount_per_order:.2f}", f"{average_items_per_order:.2f}", f"{average_orders_per_day:.2f}"]
+    }
+    metrics_df = pd.DataFrame(metrics_data)
+    st.table(metrics_df)
 
     # Display analytics
-    st.write("### Analytics")
     col1, col2 = st.columns(2)
 
     # Pie chart for orders by delivery channel
@@ -373,16 +432,68 @@ def display_suppliers_module():
     # Close the Snowflake connection
     conn.close()
 
+# Function for displaying menu module
 def display_menu_module():
-     # Example of AI-based ingredient and product suggestion
     st.subheader("Ingredient & Product List (Powered by AI)")
-    st.write("""
-    Specific ingredient list recommendations based on menu items:
-    - Burgers: Beef, buns, cheese, sauces
-    - Pizzas: Dough, cheese, tomato sauce, toppings
-    - Salads: Lettuce, tomatoes, cucumbers, dressings
-    """)
-    st.write("Use AI to analyze and list ingredients and products from suppliers based on your menu.")
+    menu_items = ["Burgers", "Pizzas", "Salads", "Wraps", "Pasta"]
+    selected_item = st.selectbox("Select a Menu Item to view recommendations and details:", menu_items)
+
+    # Ingredient recommendations
+    recommendations = {
+        "Burgers": ["Beef, buns, cheese, sauces"],
+        "Pizzas": ["Dough, cheese, tomato sauce, toppings"],
+        "Salads": ["Lettuce, tomatoes, cucumbers, dressings"],
+        "Wraps": ["Tortilla wraps, chicken, lettuce, sauces"],
+        "Pasta": ["Pasta, tomato sauce, garlic, olive oil, herbs"]
+    }
+    st.write(f"**Ingredient Recommendations for {selected_item}:**")
+    st.write(recommendations[selected_item])
+
+    # Nutritional information
+    nutritional_info = {
+        "Burgers": {"Calories": "500 kcal", "Protein": "25g", "Carbs": "40g", "Fat": "20g"},
+        "Pizzas": {"Calories": "600 kcal", "Protein": "20g", "Carbs": "70g", "Fat": "25g"},
+        "Salads": {"Calories": "150 kcal", "Protein": "5g", "Carbs": "10g", "Fat": "8g"},
+        "Wraps": {"Calories": "300 kcal", "Protein": "15g", "Carbs": "35g", "Fat": "12g"},
+        "Pasta": {"Calories": "400 kcal", "Protein": "10g", "Carbs": "50g", "Fat": "15g"},
+    }
+    st.write(f"**Nutritional Information for {selected_item}:**")
+    st.write(nutritional_info[selected_item])
+
+    # Recipe suggestion
+    recipe_suggestions = {
+        "Burgers": "Grill a beef patty and place it between buns with cheese, lettuce, tomato, and sauces.",
+        "Pizzas": "Spread tomato sauce on dough, add cheese and toppings, and bake until golden.",
+        "Salads": "Chop lettuce, tomatoes, cucumbers, add dressing, and toss.",
+        "Wraps": "Add grilled chicken, lettuce, and sauces into a wrap, fold, and serve.",
+        "Pasta": "Boil pasta, sauté garlic in olive oil, add tomato sauce, and toss pasta in sauce."
+    }
+    st.write(f"**AI-Generated Recipe for {selected_item}:**")
+    st.write(recipe_suggestions[selected_item])
+
+    # Supplier recommendations
+    supplier_recommendations = {
+        "Burgers": ["Supplier A for Beef", "Supplier B for Buns", "Supplier C for Cheese"],
+        "Pizzas": ["Supplier D for Dough", "Supplier E for Cheese", "Supplier F for Tomato Sauce"],
+        "Salads": ["Supplier G for Lettuce", "Supplier H for Tomatoes", "Supplier I for Cucumbers"],
+        "Wraps": ["Supplier J for Wraps", "Supplier K for Chicken", "Supplier L for Sauces"],
+        "Pasta": ["Supplier M for Pasta", "Supplier N for Tomato Sauce", "Supplier O for Herbs"]
+    }
+    st.write(f"**Supplier Recommendations for {selected_item}:**")
+    for supplier in supplier_recommendations[selected_item]:
+        st.write(f"- {supplier}")
+
+    # Cost analysis
+    ingredient_costs = {
+        "Burgers": {"Beef": "$2.50", "Buns": "$0.50", "Cheese": "$0.75", "Sauces": "$0.25"},
+        "Pizzas": {"Dough": "$1.00", "Cheese": "$1.50", "Tomato Sauce": "$0.50", "Toppings": "$0.75"},
+        "Salads": {"Lettuce": "$0.50", "Tomatoes": "$0.75", "Cucumbers": "$0.30", "Dressings": "$0.40"},
+        "Wraps": {"Tortilla Wraps": "$0.75", "Chicken": "$1.50", "Lettuce": "$0.50", "Sauces": "$0.25"},
+        "Pasta": {"Pasta": "$1.00", "Tomato Sauce": "$0.50", "Garlic": "$0.20", "Herbs": "$0.10"}
+    }
+    st.write(f"**Cost Analysis for {selected_item}:**")
+    cost_data = pd.DataFrame(ingredient_costs[selected_item].items(), columns=["Ingredient", "Cost"])
+    st.table(cost_data)
 
 
 # Function for displaying competitors module
@@ -390,14 +501,22 @@ def display_competitors_module():
     st.header("Competitor Analytics")
     conn = get_snowflake_connection()
 
+    # Query competitor data
     competitor_data = pd.read_sql("SELECT * FROM KOMBUIS_PROTOTYPE1.PUBLIC.COMPETITOR_TAKEALYTICS", conn)
     conn.close()
     competitor_data.columns = competitor_data.columns.str.lower()
 
+    # Filter by competitor name
     name_selection = st.selectbox("Select Competitor Name", options=competitor_data['name'].unique())
     selected_data = competitor_data[competitor_data['name'] == name_selection]
 
+    # Display competitor details
     if not selected_data.empty:
+
+        # Extract unique postcodes for map display
+        postcodes = selected_data['postcode'].unique()
+        display_uk_postcode_map_with_multiple_pins(postcodes)
+
         st.write("### Competitor Details")
         st.write(f"**City:** {selected_data['city'].iloc[0]}")
         st.write(f"**Ratings:** {selected_data['ratings'].iloc[0]}")
@@ -406,6 +525,9 @@ def display_competitors_module():
         st.write("**Food Types (DE):**", selected_data['venue_food_types_de'].iloc[0])
         st.write("**Food Types (JE):**", selected_data['venue_food_types_je'].iloc[0])
         st.dataframe(selected_data)
+        
+    else:
+        st.write("No competitor data found for the selected name.")
 
 # Function for displaying global markets and news module
 def display_global_markets_module():
