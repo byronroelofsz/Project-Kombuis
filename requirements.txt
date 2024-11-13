@@ -1,0 +1,7 @@
+snowflake-connector-python
+pandas
+matplotlib
+Pillow
+geopy
+folium
+streamlit-folium
