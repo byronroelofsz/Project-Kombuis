@@ -26,12 +26,12 @@ st.sidebar.markdown(f"**Date & Time:** {current_datetime}")
 
 def get_snowflake_connection():
     return snowflake.connector.connect(
-        user='BYRONKOMBUIS',
-        password='Vry<#233bur>g',
-        account='ixmezcl-ku05983',
-        warehouse='COMPUTE_WH',
-        database='KOMBUIS_PROTOTYPE1',
-        schema='PUBLIC'
+        user=st.secrets["snowflake"]["user"],
+        password=st.secrets["snowflake"]["password"],
+        account=st.secrets["snowflake"]["account"],
+        warehouse=st.secrets["snowflake"]["warehouse"],
+        database=st.secrets["snowflake"]["database"],
+        schema=st.secrets["snowflake"]["schema"]
     )
 
 
